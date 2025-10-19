@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Radar Aéreo Portable</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      font-family: sans-serif;
+      text-align: center;
+      margin: 0;
+      padding: 0;
+      background: #e0f7fa;
+    }
+    #mapa {
+      height: 80vh;
+      width: 100%;
+    }
+    #alerta {
+      padding: 10px;
+      font-size: 18px;
+      color: #d32f2f;
+    }
+  </style>
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  />
+</head>
+<body>
+  <h1>✈️ Radar de Aviones Cercanos</h1>
+  <div id="mapa"></div>
+  <div id="alerta">Sin aviones cercanos.</div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    const miLat = -34.8;
+    const miLon = -58.6;
+    const radioKm = 20;
+
+    const mapa = L.map('mapa').setView([miLat, miLon], 10);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(mapa);
+    L.circle([miLat, miLon], { radius: radioKm * 1000, color: 'blue' }).addTo(mapa);
+
+    function distancia(lat1, lon1, lat2, lon2) {
+      const R = 6371;
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a = Math.sin(dLat/2)**2 +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                Math.sin(dLon/2)**2;
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    }
+
+    async function detectarAviones() {
+      try {
+        const res = await fetch('https://opensky-network.org/api/states/all');
+        const data = await res.json();
+        const alerta = document.getElementById('alerta');
+        let encontrado = false;
+
+        data.states.forEach(avion => {
+          const lat = avion[6];
+          const lon = avion[5];
+          if (lat && lon) {
+            const d = distancia(miLat, miLon, lat, lon);
+            if (d < radioKm) {
+              L.marker([lat, lon]).addTo(mapa)
+                .bindPopup(`Avión: ${avion[1]}<br>${Math.round(d)} km`).openPopup();
+              alerta.textContent = `🚨 Avión cerca: ${avion[1]} a ${Math.round(d)} km`;
+              encontrado = true;
+            }
+          }
+        });
+
+        if (!encontrado) alerta.textContent = "Sin aviones cercanos.";
+      } catch (err) {
+        console.error("Error al obtener datos:", err);
+      }
+    }
+
+    detectarAviones();
+    setInterval(detectarAviones, 30000);
+  </script>
+</body>
+</html>
